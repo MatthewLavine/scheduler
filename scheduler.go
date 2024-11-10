@@ -147,8 +147,11 @@ func (s *Scheduler) runCore(coreID int) {
 			if s.outputMode == LogMode {
 				s.logChannel <- fmt.Sprintf("Core %d processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
-		} else {
-			// Mark the core as idle if the task is completed
+		}
+
+		// Check if task is completed, or there is no task left to work on
+		if atomic.LoadInt32(&task.workLeft) == 0 {
+			// Mark the core as idle
 			s.coreStatus[coreID] = "Idle"
 			if s.outputMode == LogMode {
 				s.logChannel <- fmt.Sprintf("Core %d transitioning to idle", coreID+1)
@@ -163,7 +166,7 @@ func (s *Scheduler) runCore(coreID int) {
 			s.logChannel <- fmt.Sprintf("Core %d finished Task %d\n", coreID+1, task.id)
 		}
 	}
-	s.coreStatus[coreID] = "Idle"
+	s.coreStatus[coreID] = "Shutdown"
 }
 
 func min(a, b int) int {
