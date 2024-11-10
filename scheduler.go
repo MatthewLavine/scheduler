@@ -71,8 +71,10 @@ func (s *Scheduler) Start() {
 	go s.dispatchTasks()
 
 	// Start progress checking
-	s.progressWG.Add(1)
-	go s.checkProgress()
+	if s.outputMode == ProgressMode {
+		s.progressWG.Add(1)
+		go s.checkProgress()
+	}
 
 	// Wait for task dispatch to finish
 	s.dispatchWG.Wait()
@@ -91,6 +93,11 @@ func (s *Scheduler) Start() {
 		close(s.logChannel)  // Safely close logChannel
 		close(s.doneChannel) // Signal progress checking to stop
 	})
+
+	// Final log before exit.
+	clearScreen()
+	s.printProgress()
+
 	fmt.Println("All tasks completed")
 }
 
@@ -145,6 +152,9 @@ func (s *Scheduler) runCore(coreID int) {
 		} else {
 			// Mark the core as idle if the task is completed
 			s.coreStatus[coreID] = "Idle"
+			if s.outputMode == LogMode {
+				s.logChannel <- fmt.Sprintf("Core %d transitioning to idle", coreID+1)
+			}
 		}
 
 		// Simulate the time it takes to do work
@@ -157,6 +167,7 @@ func (s *Scheduler) runCore(coreID int) {
 
 		task.mu.Unlock()
 	}
+	s.coreStatus[coreID] = "Idle"
 }
 
 func min(a, b int) int {
