@@ -25,13 +25,16 @@ type Task struct {
 
 // Scheduler simulates a CPU scheduler with multiple cores
 type Scheduler struct {
-	tasks      []*Task
-	taskQueue  chan *Task
-	timeSlice  int            // Time slice for each task in ms
-	numCores   int            // Number of logical CPU cores
-	outputMode int            // Mode of output: LogMode or ProgressMode
-	coreStatus []string       // Status of each core (busy or idle)
-	wg         sync.WaitGroup // Wait group to wait for all cores to finish
+	tasks       []*Task
+	taskQueue   chan *Task
+	timeSlice   int            // Time slice for each task in ms
+	numCores    int            // Number of logical CPU cores
+	outputMode  int            // Mode of output: LogMode or ProgressMode
+	coreStatus  []string       // Status of each core (busy or idle)
+	wg          sync.WaitGroup // Wait group to wait for all cores to finish
+	outputMutex sync.Mutex     // Mutex to ensure synchronized logging
+	logChannel  chan string    // Channel for log messages
+	logWG       sync.WaitGroup // Wait group to ensure logging is complete
 }
 
 // NewScheduler creates a new scheduler with the given time slice, number of cores, and output mode
@@ -42,6 +45,7 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 		outputMode: outputMode,
 		taskQueue:  make(chan *Task, numCores), // Buffered to avoid blocking
 		coreStatus: make([]string, numCores),
+		logChannel: make(chan string, 100), // Channel for logs, buffered
 	}
 }
 
@@ -62,8 +66,17 @@ func (s *Scheduler) Start() {
 	// Dispatch tasks to the queue
 	go s.dispatchTasks()
 
+	// Start a goroutine to handle logging
+	s.logWG.Add(1) // Add 1 to wait for the logging goroutine to finish
+	go s.handleLogging()
+
 	// Wait for all cores to finish processing tasks
 	s.wg.Wait()
+
+	// After all tasks are completed, close the log channel and wait for logging to finish
+	close(s.logChannel)
+	s.logWG.Wait() // Ensure logging is complete before exiting
+
 	fmt.Println("All tasks completed")
 }
 
@@ -90,9 +103,9 @@ func (s *Scheduler) dispatchTasks() {
 			break
 		}
 
-		// In Progress Mode, print the progress display
+		// In Progress Mode, print the progress display at reduced frequency
 		if s.outputMode == ProgressMode {
-			s.printProgress()
+			s.checkProgress()
 		}
 
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond) // Simulate scheduler tick
@@ -123,9 +136,9 @@ func (s *Scheduler) runCore(coreID int) {
 			// Update core status for Progress Mode
 			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Task %d", coreID+1, task.id)
 
-			// In LogMode, log task progress
+			// Log task progress or completion in LogMode
 			if s.outputMode == LogMode {
-				fmt.Printf("Core %d started processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
+				s.logChannel <- fmt.Sprintf("Core %d started processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
 		} else {
 			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
@@ -136,7 +149,7 @@ func (s *Scheduler) runCore(coreID int) {
 
 		// Log task completion in LogMode
 		if task.isCompleted && s.outputMode == LogMode {
-			fmt.Printf("Core %d finished processing Task %d\n", coreID+1, task.id)
+			s.logChannel <- fmt.Sprintf("Core %d finished processing Task %d\n", coreID+1, task.id)
 		}
 
 		// Mark core as idle when done
@@ -174,9 +187,27 @@ func clearScreen() {
 	fmt.Print("\033[H\033[2J") // Escape sequence to clear the screen
 }
 
+// logToOutput safely writes to the terminal with synchronized access
+func (s *Scheduler) logToOutput(message string) {
+	s.outputMutex.Lock() // Ensure only one goroutine writes at a time
+	defer s.outputMutex.Unlock()
+	fmt.Print(message) // Write log to terminal
+}
+
+// checkProgress checks if enough time has passed to print a progress report
+func (s *Scheduler) checkProgress() {
+	// Reduce logging frequency by checking every second
+	select {
+	case <-time.After(1 * time.Second):
+		clearScreen()
+		s.printProgress()
+	default:
+		// Continue without blocking other tasks
+	}
+}
+
 // printProgress displays the current status of all tasks and cores
 func (s *Scheduler) printProgress() {
-	clearScreen()
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
 		task.mu.Lock()
@@ -190,6 +221,14 @@ func (s *Scheduler) printProgress() {
 	fmt.Println("------------------------")
 }
 
+// handleLogging processes log messages from the log channel
+func (s *Scheduler) handleLogging() {
+	defer s.logWG.Done() // Ensure Done is called when logging is finished
+	for message := range s.logChannel {
+		s.logToOutput(message)
+	}
+}
+
 func main() {
 	numCores := 4              // Number of logical CPU cores
 	timeSlice := 100           // 100ms time slice
@@ -200,10 +239,10 @@ func main() {
 	// Add tasks with heavy computation functions
 	scheduler.AddTask(1, 1500, SimulateHeavyComputation)
 	scheduler.AddTask(2, 2500, SimulateHeavyComputation)
-	scheduler.AddTask(3, 2000, SimulateHeavyComputation)
-	scheduler.AddTask(4, 3000, SimulateHeavyComputation)
+	scheduler.AddTask(3, 1200, SimulateHeavyComputation)
+	scheduler.AddTask(4, 1800, SimulateHeavyComputation)
 	scheduler.AddTask(5, 1000, SimulateHeavyComputation)
 
-	// Start the scheduling process
+	// Start the scheduler
 	scheduler.Start()
 }
