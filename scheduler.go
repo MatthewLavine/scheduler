@@ -228,11 +228,11 @@ func main() {
 	scheduler := NewScheduler(500, 4, ProgressMode)
 
 	// Add tasks
-	scheduler.AddTask(1, 500, SimulateHeavyComputation)
-	scheduler.AddTask(2, 1000, SimulateHeavyComputation)
-	scheduler.AddTask(3, 1500, SimulateHeavyComputation)
-	scheduler.AddTask(4, 1000, SimulateHeavyComputation)
-	scheduler.AddTask(5, 1800, SimulateHeavyComputation)
+	scheduler.AddTask(1, 5000, SimulateHeavyComputation)
+	scheduler.AddTask(2, 3000, SimulateHeavyComputation)
+	scheduler.AddTask(3, 2500, SimulateHeavyComputation)
+	scheduler.AddTask(4, 4000, SimulateHeavyComputation)
+	scheduler.AddTask(5, 3800, SimulateHeavyComputation)
 
 	// Start the scheduler
 	scheduler.Start()
