@@ -137,14 +137,14 @@ func (s *Scheduler) runCore(coreID int) {
 			}
 
 			// Set core status without blocking task progress
-			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Task %d", coreID+1, task.id)
+			s.coreStatus[coreID] = fmt.Sprintf("Task %d", task.id)
 
 			if s.outputMode == LogMode {
 				s.logChannel <- fmt.Sprintf("Core %d processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
 		} else {
 			// Mark the core as idle if the task is completed
-			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
+			s.coreStatus[coreID] = "Idle"
 		}
 
 		// Simulate the time it takes to do work
