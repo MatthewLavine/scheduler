@@ -187,7 +187,7 @@ func (s *Scheduler) logToOutput(message string) {
 func (s *Scheduler) checkProgress() {
 	defer s.progressWG.Done()
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -205,10 +205,8 @@ func (s *Scheduler) checkProgress() {
 func (s *Scheduler) printProgress() {
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
-		task.mu.Lock()
 		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork))
 		fmt.Printf("Task %d: %.2f%% complete, work left: %d\n", task.id, progress, task.workLeft)
-		task.mu.Unlock()
 	}
 	for i, status := range s.coreStatus {
 		fmt.Printf("Core %d: %s\n", i+1, status)
