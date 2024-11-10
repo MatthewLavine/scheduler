@@ -20,6 +20,7 @@ type Task struct {
 	initialWork int           // Initial units of work for this task
 	workFunc    func(int) int // Function to perform work, returns remaining work
 	isCompleted bool          // Flag to check if task is completed
+	mu          sync.Mutex    // Mutex to protect access to task data
 }
 
 // Scheduler simulates a CPU scheduler with multiple cores
@@ -73,6 +74,7 @@ func (s *Scheduler) dispatchTasks() {
 		// If all tasks are completed, break the loop
 		allCompleted := true
 		for _, task := range s.tasks {
+			task.mu.Lock()
 			if !task.isCompleted {
 				allCompleted = false
 				// Only dispatch tasks that still have work left
@@ -80,6 +82,7 @@ func (s *Scheduler) dispatchTasks() {
 					s.taskQueue <- task
 				}
 			}
+			task.mu.Unlock()
 		}
 
 		// Exit if all tasks are completed
@@ -105,6 +108,7 @@ func (s *Scheduler) runCore(coreID int) {
 
 	for task := range s.taskQueue {
 		// Process the task
+		task.mu.Lock()
 		if task.workLeft > 0 && !task.isCompleted {
 			// Calculate the amount of work done in this time slice
 			workDone := min(task.workLeft, s.timeSlice)
@@ -137,6 +141,7 @@ func (s *Scheduler) runCore(coreID int) {
 
 		// Mark core as idle when done
 		s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
+		task.mu.Unlock()
 	}
 }
 
@@ -174,8 +179,10 @@ func (s *Scheduler) printProgress() {
 	clearScreen()
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
+		task.mu.Lock()
 		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork)) // Correct progress calculation
 		fmt.Printf("Task %d: %.2f%% complete, work left: %d\n", task.id, progress, task.workLeft)
+		task.mu.Unlock()
 	}
 	for _, status := range s.coreStatus {
 		fmt.Println(status)
