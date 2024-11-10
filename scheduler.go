@@ -24,12 +24,11 @@ type Task struct {
 type Scheduler struct {
 	tasks      []*Task
 	taskQueue  chan *Task
-	timeSlice  int // Time slice for each task in ms
-	numCores   int // Number of logical CPU cores
-	outputMode int // Mode of output: LogMode or ProgressMode
-	mu         sync.Mutex
-	coreStatus []string      // Status of each core (busy or idle)
-	done       chan struct{} // Channel to signal that all tasks are completed
+	timeSlice  int            // Time slice for each task in ms
+	numCores   int            // Number of logical CPU cores
+	outputMode int            // Mode of output: LogMode or ProgressMode
+	coreStatus []string       // Status of each core (busy or idle)
+	wg         sync.WaitGroup // Wait group to wait for all cores to finish
 }
 
 // NewScheduler creates a new scheduler with the given time slice, number of cores, and output mode
@@ -40,7 +39,6 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 		outputMode: outputMode,
 		taskQueue:  make(chan *Task, numCores), // Buffered to avoid blocking
 		coreStatus: make([]string, numCores),
-		done:       make(chan struct{}), // Channel to signal completion
 	}
 }
 
@@ -52,15 +50,25 @@ func (s *Scheduler) AddTask(id int, workLeft int, workFunc func(int) int) {
 
 // Start begins the scheduling simulation, creating worker cores
 func (s *Scheduler) Start() {
-	var wg sync.WaitGroup
+	// Start worker goroutines for each core
 	for i := 0; i < s.numCores; i++ {
-		wg.Add(1)
-		go s.runCore(i, &wg) // Start each core as a goroutine
+		s.wg.Add(1)
+		go s.runCore(i) // Start each core as a goroutine
 	}
 
-	// Distribute tasks to the task queue for cores to pick up
+	// Dispatch tasks to the queue
+	go s.dispatchTasks()
+
+	// Wait for all cores to finish processing tasks
+	s.wg.Wait()
+	fmt.Println("All tasks completed")
+}
+
+// dispatchTasks distributes tasks to the taskQueue until all tasks are processed
+func (s *Scheduler) dispatchTasks() {
+	// Dispatch tasks to the taskQueue
 	for len(s.tasks) > 0 {
-		s.mu.Lock()
+		// Only dispatch tasks that still have work left
 		for i := 0; i < len(s.tasks); i++ {
 			task := s.tasks[i]
 			if task.workLeft > 0 {
@@ -74,7 +82,6 @@ func (s *Scheduler) Start() {
 				i-- // Adjust index after removal
 			}
 		}
-		s.mu.Unlock()
 
 		// In Progress Mode, print the progress display
 		if s.outputMode == ProgressMode {
@@ -84,48 +91,35 @@ func (s *Scheduler) Start() {
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond) // Simulate scheduler tick
 	}
 
-	close(s.taskQueue) // Close the task queue once all tasks have been queued
-	close(s.done)      // Signal that all tasks are complete
-	wg.Wait()          // Wait for all cores to finish
-	fmt.Println("All tasks completed")
+	// Close the task queue once all tasks have been dispatched
+	close(s.taskQueue)
 }
 
 // runCore represents a CPU core that processes tasks
-func (s *Scheduler) runCore(coreID int, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for {
-		select {
-		case task, ok := <-s.taskQueue:
-			if !ok {
-				return // Exit if the task queue is closed
+func (s *Scheduler) runCore(coreID int) {
+	defer s.wg.Done()
+	for task := range s.taskQueue {
+		// Process the task
+		if task.workLeft > 0 {
+			// Calculate the amount of work done in this time slice
+			workDone := min(task.workLeft, s.timeSlice)
+			task.workLeft -= workDone
+			task.workLeft = max(task.workLeft, 0) // Ensure no negative workLeft
+
+			// Update core status for Progress Mode
+			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Task %d", coreID+1, task.id)
+
+			if s.outputMode == LogMode {
+				fmt.Printf("Core %d started processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
-			s.mu.Lock()
-			if task.workLeft > 0 {
-				// Calculate the amount of work done in this time slice
-				workDone := min(task.workLeft, s.timeSlice)
-				task.workLeft -= workDone
-				task.workLeft = max(task.workLeft, 0) // Ensure no negative workLeft
-
-				// Update core status for Progress Mode
-				s.coreStatus[coreID] = fmt.Sprintf("Core %d: Task %d", coreID+1, task.id)
-
-				if s.outputMode == LogMode {
-					fmt.Printf("Core %d started processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
-				}
-			} else {
-				s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
-			}
-			s.mu.Unlock()
-
-			// Simulate the core's time slice duration without blocking other cores
-			time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
-
-			s.mu.Lock()
-			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1) // Mark core as idle when done
-			s.mu.Unlock()
-		case <-s.done:
-			return // Exit if done signal is received
+		} else {
+			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
 		}
+
+		// Simulate the core's time slice duration without blocking other cores
+		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
+
+		s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1) // Mark core as idle when done
 	}
 }
 
@@ -155,9 +149,6 @@ func SimulateHeavyComputation(units int) int {
 
 // printProgress displays the current status of all tasks and cores
 func (s *Scheduler) printProgress() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
 		progress := 100 * (1 - float64(task.workLeft)/float64(task.workFunc(0))) // Show progress as a percentage
