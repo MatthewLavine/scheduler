@@ -35,6 +35,7 @@ type Scheduler struct {
 	doneChannel chan struct{}
 	dispatchWG  sync.WaitGroup // WaitGroup for dispatching tasks
 	progressWG  sync.WaitGroup // WaitGroup for progress checking
+	once        sync.Once      // Ensures that logChannel is closed only once
 }
 
 func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
@@ -86,7 +87,10 @@ func (s *Scheduler) Start() {
 	s.logWG.Wait()
 
 	// Signal completion
-	close(s.doneChannel)
+	s.once.Do(func() {
+		close(s.logChannel)  // Safely close logChannel
+		close(s.doneChannel) // Signal progress checking to stop
+	})
 	fmt.Println("All tasks completed")
 }
 
@@ -108,6 +112,11 @@ func (s *Scheduler) dispatchTasks() {
 
 		// Exit if all tasks are completed
 		if allCompleted {
+			// Ensure logChannel is closed only once
+			s.once.Do(func() {
+				close(s.logChannel)  // Safely close logChannel
+				close(s.doneChannel) // Signal progress checking to stop
+			})
 			break
 		}
 
