@@ -15,9 +15,10 @@ const (
 
 // Task represents a simulated process or task
 type Task struct {
-	id       int
-	workLeft int           // Units of work left for this task
-	workFunc func(int) int // Function to perform work, returns remaining work
+	id          int           // Task ID
+	workLeft    int           // Units of work left for this task
+	initialWork int           // Initial units of work for this task
+	workFunc    func(int) int // Function to perform work, returns remaining work
 }
 
 // Scheduler simulates a CPU scheduler with multiple cores
@@ -44,7 +45,7 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 
 // AddTask adds a new task to the scheduler
 func (s *Scheduler) AddTask(id int, workLeft int, workFunc func(int) int) {
-	task := &Task{id: id, workLeft: workLeft, workFunc: workFunc}
+	task := &Task{id: id, workLeft: workLeft, initialWork: workLeft, workFunc: workFunc}
 	s.tasks = append(s.tasks, task)
 }
 
@@ -147,11 +148,17 @@ func SimulateHeavyComputation(units int) int {
 	return units - 50 // Reduce work units by 50 for each call
 }
 
+// clearScreen clears the terminal screen
+func clearScreen() {
+	fmt.Print("\033[H\033[2J") // Escape sequence to clear the screen
+}
+
 // printProgress displays the current status of all tasks and cores
 func (s *Scheduler) printProgress() {
+	clearScreen()
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
-		progress := 100 * (1 - float64(task.workLeft)/float64(task.workFunc(0))) // Show progress as a percentage
+		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork)) // Correct progress calculation
 		fmt.Printf("Task %d: %.2f%% complete, work left: %d\n", task.id, progress, task.workLeft)
 	}
 	for _, status := range s.coreStatus {
