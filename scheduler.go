@@ -19,6 +19,7 @@ type Task struct {
 	workLeft    int           // Units of work left for this task
 	initialWork int           // Initial units of work for this task
 	workFunc    func(int) int // Function to perform work, returns remaining work
+	isCompleted bool          // Flag to check if task is completed
 }
 
 // Scheduler simulates a CPU scheduler with multiple cores
@@ -68,20 +69,22 @@ func (s *Scheduler) Start() {
 // dispatchTasks distributes tasks to the taskQueue until all tasks are processed
 func (s *Scheduler) dispatchTasks() {
 	// Dispatch tasks to the taskQueue
-	for len(s.tasks) > 0 {
-		// Only dispatch tasks that still have work left
-		for i := 0; i < len(s.tasks); i++ {
-			task := s.tasks[i]
-			if task.workLeft > 0 {
-				// Send the task to the task queue for cores to work on
-				s.taskQueue <- task
+	for {
+		// If all tasks are completed, break the loop
+		allCompleted := true
+		for _, task := range s.tasks {
+			if !task.isCompleted {
+				allCompleted = false
+				// Only dispatch tasks that still have work left
+				if task.workLeft > 0 {
+					s.taskQueue <- task
+				}
 			}
-			// If task is completed, remove it from the list
-			if task.workLeft <= 0 {
-				fmt.Printf("Task %d finished\n", task.id)
-				s.tasks = append(s.tasks[:i], s.tasks[i+1:]...)
-				i-- // Adjust index after removal
-			}
+		}
+
+		// Exit if all tasks are completed
+		if allCompleted {
+			break
 		}
 
 		// In Progress Mode, print the progress display
@@ -101,7 +104,7 @@ func (s *Scheduler) runCore(coreID int) {
 	defer s.wg.Done()
 	for task := range s.taskQueue {
 		// Process the task
-		if task.workLeft > 0 {
+		if task.workLeft > 0 && !task.isCompleted {
 			// Calculate the amount of work done in this time slice
 			workDone := min(task.workLeft, s.timeSlice)
 			task.workLeft -= workDone
