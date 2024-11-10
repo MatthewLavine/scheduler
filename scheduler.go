@@ -141,6 +141,7 @@ func (s *Scheduler) runCore(coreID int) {
 			workDone := min(int(atomic.LoadInt32(&task.workLeft)), s.timeSlice)
 			atomic.AddInt32(&task.workLeft, -int32(workDone))
 			if atomic.LoadInt32(&task.workLeft) == 0 {
+				// Mark task as completed atomically
 				task.isCompleted = true
 			}
 
