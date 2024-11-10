@@ -33,6 +33,7 @@ type Scheduler struct {
 	logChannel  chan string
 	logWG       sync.WaitGroup
 	doneChannel chan struct{}
+	dispatchWG  sync.WaitGroup // WaitGroup for dispatching tasks
 }
 
 func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
@@ -40,7 +41,7 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 		timeSlice:   timeSlice,
 		numCores:    numCores,
 		outputMode:  outputMode,
-		taskQueue:   make(chan *Task, numCores),
+		taskQueue:   make(chan *Task), // unbuffered channel
 		coreStatus:  make([]string, numCores),
 		logChannel:  make(chan string, 100),
 		doneChannel: make(chan struct{}),
@@ -64,13 +65,17 @@ func (s *Scheduler) Start() {
 	go s.handleLogging()
 
 	// Start task dispatching
+	s.dispatchWG.Add(1)
 	go s.dispatchTasks()
 
-	// Wait for all cores to finish
-	s.wg.Wait()
+	// Wait for task dispatch to finish
+	s.dispatchWG.Wait()
 
 	// Close task queue after all tasks are dispatched
 	close(s.taskQueue)
+
+	// Wait for all cores to finish
+	s.wg.Wait()
 
 	// Wait for logging to finish
 	s.logWG.Wait()
@@ -81,11 +86,15 @@ func (s *Scheduler) Start() {
 }
 
 func (s *Scheduler) dispatchTasks() {
+	defer s.dispatchWG.Done()
+
+	// Keep dispatching tasks until all tasks are dispatched
 	for {
 		allCompleted := true
 		for _, task := range s.tasks {
 			task.mu.Lock()
 			if !task.isCompleted && task.workLeft > 0 {
+				// Send task to taskQueue if not completed
 				s.taskQueue <- task
 				allCompleted = false
 			}
