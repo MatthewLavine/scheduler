@@ -17,6 +17,7 @@ type Task struct {
 	workLeft    int32 // Use int32 for atomic operations
 	initialWork int
 	isCompleted bool
+	assigned    int32 // Atomic flag to indicate if the task is assigned (1 if assigned, 0 if not)
 }
 
 type Scheduler struct {
@@ -106,10 +107,13 @@ func (s *Scheduler) dispatchTasks() {
 	for {
 		allCompleted := true
 		for _, task := range s.tasks {
-			if atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
-				// Send task to taskQueue if not completed
-				s.taskQueue <- task
-				allCompleted = false
+			// Try to assign the task to a core (if not already assigned)
+			if atomic.LoadInt32(&task.assigned) == 0 && atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
+				// Use atomic CompareAndSwap to ensure no other core picks this task
+				if atomic.CompareAndSwapInt32(&task.assigned, 0, 1) {
+					s.taskQueue <- task
+					allCompleted = false
+				}
 			}
 		}
 
@@ -131,39 +135,35 @@ func (s *Scheduler) runCore(coreID int) {
 	defer s.wg.Done()
 
 	for task := range s.taskQueue {
-		// Check if the task still has work
-		if atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
+		// Check if the task is assigned and still needs work
+		if atomic.LoadInt32(&task.assigned) == 1 && atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
+			// Do the work
 			workDone := min(int(atomic.LoadInt32(&task.workLeft)), s.timeSlice)
 			atomic.AddInt32(&task.workLeft, -int32(workDone))
 			if atomic.LoadInt32(&task.workLeft) == 0 {
 				task.isCompleted = true
 			}
 
-			// Set core status without blocking task progress
+			// Set core status
 			s.coreStatus[coreID] = fmt.Sprintf("Task %d", task.id)
 
 			if s.outputMode == LogMode {
 				s.logChannel <- fmt.Sprintf("Core %d processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
-		}
 
-		// Check if task is completed, or there is no task left to work on
-		if atomic.LoadInt32(&task.workLeft) == 0 {
-			// Mark the core as idle
-			s.coreStatus[coreID] = "Idle"
-			if s.outputMode == LogMode {
-				s.logChannel <- fmt.Sprintf("Core %d transitioning to idle", coreID+1)
+			// Task completion logic
+			if task.isCompleted {
+				atomic.StoreInt32(&task.assigned, 0) // Mark task as unassigned when completed
+				if s.outputMode == LogMode {
+					s.logChannel <- fmt.Sprintf("Core %d finished Task %d\n", coreID+1, task.id)
+				}
 			}
 		}
 
 		// Simulate the time it takes to do work
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
-
-		// Log completion of the task
-		if task.isCompleted && s.outputMode == LogMode {
-			s.logChannel <- fmt.Sprintf("Core %d finished Task %d\n", coreID+1, task.id)
-		}
 	}
+
 	s.coreStatus[coreID] = "Shutdown"
 }
 
