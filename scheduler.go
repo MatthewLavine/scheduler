@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,11 +15,10 @@ const (
 
 type Task struct {
 	id          int
-	workLeft    int
+	workLeft    int32 // Use int32 for atomic operations
 	initialWork int
 	workFunc    func(int) int
 	isCompleted bool
-	mu          sync.Mutex
 }
 
 type Scheduler struct {
@@ -51,7 +51,7 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 }
 
 func (s *Scheduler) AddTask(id int, workLeft int, workFunc func(int) int) {
-	task := &Task{id: id, workLeft: workLeft, initialWork: workLeft, workFunc: workFunc}
+	task := &Task{id: id, workLeft: int32(workLeft), initialWork: workLeft, workFunc: workFunc}
 	s.tasks = append(s.tasks, task)
 }
 
@@ -108,13 +108,11 @@ func (s *Scheduler) dispatchTasks() {
 	for {
 		allCompleted := true
 		for _, task := range s.tasks {
-			task.mu.Lock()
-			if !task.isCompleted && task.workLeft > 0 {
+			if atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
 				// Send task to taskQueue if not completed
 				s.taskQueue <- task
 				allCompleted = false
 			}
-			task.mu.Unlock()
 		}
 
 		// Exit if all tasks are completed
@@ -135,11 +133,11 @@ func (s *Scheduler) runCore(coreID int) {
 	defer s.wg.Done()
 
 	for task := range s.taskQueue {
-		task.mu.Lock()
-		if task.workLeft > 0 && !task.isCompleted {
-			workDone := min(task.workLeft, s.timeSlice)
-			task.workLeft -= workDone
-			if task.workLeft == 0 {
+		// Check if the task still has work
+		if atomic.LoadInt32(&task.workLeft) > 0 && !task.isCompleted {
+			workDone := min(int(atomic.LoadInt32(&task.workLeft)), s.timeSlice)
+			atomic.AddInt32(&task.workLeft, -int32(workDone))
+			if atomic.LoadInt32(&task.workLeft) == 0 {
 				task.isCompleted = true
 			}
 
@@ -164,8 +162,6 @@ func (s *Scheduler) runCore(coreID int) {
 		if task.isCompleted && s.outputMode == LogMode {
 			s.logChannel <- fmt.Sprintf("Core %d finished Task %d\n", coreID+1, task.id)
 		}
-
-		task.mu.Unlock()
 	}
 	s.coreStatus[coreID] = "Idle"
 }
@@ -216,7 +212,7 @@ func (s *Scheduler) checkProgress() {
 func (s *Scheduler) printProgress() {
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
-		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork))
+		progress := 100 * (float64(task.initialWork-int(atomic.LoadInt32(&task.workLeft))) / float64(task.initialWork))
 		fmt.Printf("Task %d: %.2f%% complete, work left: %d\n", task.id, progress, task.workLeft)
 	}
 	for i, status := range s.coreStatus {
