@@ -71,7 +71,7 @@ func (s *Scheduler) Start() {
 func (s *Scheduler) dispatchTasks() {
 	// Dispatch tasks to the taskQueue
 	for {
-		// If all tasks are completed, break the loop
+		// Check if any tasks are pending
 		allCompleted := true
 		for _, task := range s.tasks {
 			task.mu.Lock()
@@ -200,10 +200,10 @@ func main() {
 	// Add tasks with heavy computation functions
 	scheduler.AddTask(1, 1500, SimulateHeavyComputation)
 	scheduler.AddTask(2, 2500, SimulateHeavyComputation)
-	scheduler.AddTask(3, 1000, SimulateHeavyComputation)
+	scheduler.AddTask(3, 2000, SimulateHeavyComputation)
 	scheduler.AddTask(4, 3000, SimulateHeavyComputation)
-	scheduler.AddTask(5, 2000, SimulateHeavyComputation)
+	scheduler.AddTask(5, 1000, SimulateHeavyComputation)
 
-	// Start the scheduler
+	// Start the scheduling process
 	scheduler.Start()
 }
