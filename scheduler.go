@@ -107,6 +107,7 @@ func (s *Scheduler) dispatchTasks() {
 		}
 
 		if s.outputMode == ProgressMode {
+			// Update progress periodically without locking critical sections
 			s.checkProgress()
 		}
 
@@ -116,6 +117,10 @@ func (s *Scheduler) dispatchTasks() {
 
 func (s *Scheduler) runCore(coreID int) {
 	defer s.wg.Done()
+
+	// Create a ticker for periodic logging
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
 	for task := range s.taskQueue {
 		task.mu.Lock()
@@ -134,6 +139,16 @@ func (s *Scheduler) runCore(coreID int) {
 			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
 		}
 
+		// Periodic logging even when idle or working
+		if s.outputMode == ProgressMode {
+			select {
+			case <-ticker.C:
+				// Update progress without locking critical sections
+				s.checkProgress()
+			}
+		}
+
+		// Simulate the time it takes to do work
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
 
 		if task.isCompleted && s.outputMode == LogMode {
@@ -170,12 +185,9 @@ func (s *Scheduler) logToOutput(message string) {
 }
 
 func (s *Scheduler) checkProgress() {
-	select {
-	case <-time.After(1 * time.Second):
-		clearScreen()
-		s.printProgress()
-	default:
-	}
+	// Display progress without holding critical locks
+	clearScreen()
+	s.printProgress()
 }
 
 func (s *Scheduler) printProgress() {
