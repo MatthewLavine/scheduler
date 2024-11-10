@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +16,6 @@ type Task struct {
 	id          int
 	workLeft    int32 // Use int32 for atomic operations
 	initialWork int
-	workFunc    func(int) int
 	isCompleted bool
 }
 
@@ -50,8 +48,8 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 	}
 }
 
-func (s *Scheduler) AddTask(id int, workLeft int, workFunc func(int) int) {
-	task := &Task{id: id, workLeft: int32(workLeft), initialWork: workLeft, workFunc: workFunc}
+func (s *Scheduler) AddTask(id int, workLeft int) {
+	task := &Task{id: id, workLeft: int32(workLeft), initialWork: workLeft}
 	s.tasks = append(s.tasks, task)
 }
 
@@ -176,14 +174,6 @@ func min(a, b int) int {
 	return b
 }
 
-func SimulateHeavyComputation(units int) int {
-	sum := 0
-	for i := 0; i < units; i++ {
-		sum += int(math.Sqrt(float64(i)))
-	}
-	return units - 50
-}
-
 func clearScreen() {
 	fmt.Print("\033[H\033[2J")
 }
@@ -236,11 +226,11 @@ func main() {
 	scheduler := NewScheduler(100, 4, ProgressMode)
 
 	// Add tasks
-	scheduler.AddTask(1, 5000, SimulateHeavyComputation)
-	scheduler.AddTask(2, 3000, SimulateHeavyComputation)
-	scheduler.AddTask(3, 2500, SimulateHeavyComputation)
-	scheduler.AddTask(4, 4000, SimulateHeavyComputation)
-	scheduler.AddTask(5, 3800, SimulateHeavyComputation)
+	scheduler.AddTask(1, 5000)
+	scheduler.AddTask(2, 3000)
+	scheduler.AddTask(3, 2500)
+	scheduler.AddTask(4, 4000)
+	scheduler.AddTask(5, 3800)
 
 	// Start the scheduler
 	scheduler.Start()
