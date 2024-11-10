@@ -35,17 +35,19 @@ type Scheduler struct {
 	outputMutex sync.Mutex     // Mutex to ensure synchronized logging
 	logChannel  chan string    // Channel for log messages
 	logWG       sync.WaitGroup // Wait group to ensure logging is complete
+	doneChannel chan struct{}  // Channel to signal completion of all tasks and logging
 }
 
 // NewScheduler creates a new scheduler with the given time slice, number of cores, and output mode
 func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 	return &Scheduler{
-		timeSlice:  timeSlice,
-		numCores:   numCores,
-		outputMode: outputMode,
-		taskQueue:  make(chan *Task, numCores), // Buffered to avoid blocking
-		coreStatus: make([]string, numCores),
-		logChannel: make(chan string, 100), // Channel for logs, buffered
+		timeSlice:   timeSlice,
+		numCores:    numCores,
+		outputMode:  outputMode,
+		taskQueue:   make(chan *Task, numCores), // Buffered to avoid blocking
+		coreStatus:  make([]string, numCores),
+		logChannel:  make(chan string, 100), // Channel for logs, buffered
+		doneChannel: make(chan struct{}),    // Channel to signal when everything is done
 	}
 }
 
@@ -63,21 +65,25 @@ func (s *Scheduler) Start() {
 		go s.runCore(i) // Start each core as a goroutine
 	}
 
-	// Dispatch tasks to the queue
-	go s.dispatchTasks()
-
 	// Start a goroutine to handle logging
 	s.logWG.Add(1) // Add 1 to wait for the logging goroutine to finish
 	go s.handleLogging()
 
+	// Dispatch tasks to the task queue
+	go s.dispatchTasks()
+
 	// Wait for all cores to finish processing tasks
 	s.wg.Wait()
 
-	// After all tasks are completed, close the log channel and wait for logging to finish
-	close(s.logChannel)
-	s.logWG.Wait() // Ensure logging is complete before exiting
+	// Close taskQueue after all tasks are dispatched
+	close(s.taskQueue)
 
+	// Wait for the logging goroutine to finish
+	s.logWG.Wait()
+
+	// Indicate that all tasks have been completed
 	fmt.Println("All tasks completed")
+	close(s.doneChannel) // Signal completion
 }
 
 // dispatchTasks distributes tasks to the taskQueue until all tasks are processed
@@ -110,9 +116,6 @@ func (s *Scheduler) dispatchTasks() {
 
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond) // Simulate scheduler tick
 	}
-
-	// Close the taskQueue after all tasks are dispatched
-	close(s.taskQueue)
 }
 
 // runCore represents a CPU core that processes tasks
@@ -211,37 +214,34 @@ func (s *Scheduler) printProgress() {
 	fmt.Println("---- Progress Report ----")
 	for _, task := range s.tasks {
 		task.mu.Lock()
-		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork)) // Correct progress calculation
+		progress := 100 * (float64(task.initialWork-task.workLeft) / float64(task.initialWork))
 		fmt.Printf("Task %d: %.2f%% complete, work left: %d\n", task.id, progress, task.workLeft)
 		task.mu.Unlock()
 	}
-	for _, status := range s.coreStatus {
-		fmt.Println(status)
+	for i, status := range s.coreStatus {
+		fmt.Printf("Core %d: %s\n", i+1, status)
 	}
 	fmt.Println("------------------------")
 }
 
-// handleLogging processes log messages from the log channel
+// handleLogging processes log messages asynchronously
 func (s *Scheduler) handleLogging() {
-	defer s.logWG.Done() // Ensure Done is called when logging is finished
+	defer s.logWG.Done()
+
 	for message := range s.logChannel {
-		s.logToOutput(message)
+		s.logToOutput(message) // Safely log the message
 	}
 }
 
 func main() {
-	numCores := 4              // Number of logical CPU cores
-	timeSlice := 100           // 100ms time slice
-	outputMode := ProgressMode // Change to LogMode or ProgressMode
+	scheduler := NewScheduler(500, 4, ProgressMode)
 
-	scheduler := NewScheduler(timeSlice, numCores, outputMode)
-
-	// Add tasks with heavy computation functions
-	scheduler.AddTask(1, 1500, SimulateHeavyComputation)
-	scheduler.AddTask(2, 2500, SimulateHeavyComputation)
-	scheduler.AddTask(3, 1200, SimulateHeavyComputation)
-	scheduler.AddTask(4, 1800, SimulateHeavyComputation)
-	scheduler.AddTask(5, 1000, SimulateHeavyComputation)
+	// Add tasks
+	scheduler.AddTask(1, 500, SimulateHeavyComputation)
+	scheduler.AddTask(2, 1000, SimulateHeavyComputation)
+	scheduler.AddTask(3, 1500, SimulateHeavyComputation)
+	scheduler.AddTask(4, 1000, SimulateHeavyComputation)
+	scheduler.AddTask(5, 1800, SimulateHeavyComputation)
 
 	// Start the scheduler
 	scheduler.Start()
