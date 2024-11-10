@@ -233,7 +233,7 @@ func (s *Scheduler) handleLogging() {
 }
 
 func main() {
-	scheduler := NewScheduler(500, 4, ProgressMode)
+	scheduler := NewScheduler(100, 4, ProgressMode)
 
 	// Add tasks
 	scheduler.AddTask(1, 5000, SimulateHeavyComputation)
