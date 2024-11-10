@@ -34,6 +34,7 @@ type Scheduler struct {
 	logWG       sync.WaitGroup
 	doneChannel chan struct{}
 	dispatchWG  sync.WaitGroup // WaitGroup for dispatching tasks
+	progressWG  sync.WaitGroup // WaitGroup for progress checking
 }
 
 func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
@@ -43,7 +44,7 @@ func NewScheduler(timeSlice int, numCores int, outputMode int) *Scheduler {
 		outputMode:  outputMode,
 		taskQueue:   make(chan *Task), // unbuffered channel
 		coreStatus:  make([]string, numCores),
-		logChannel:  make(chan string, 100),
+		logChannel:  make(chan string, 100), // buffered channel for logs
 		doneChannel: make(chan struct{}),
 	}
 }
@@ -67,6 +68,10 @@ func (s *Scheduler) Start() {
 	// Start task dispatching
 	s.dispatchWG.Add(1)
 	go s.dispatchTasks()
+
+	// Start progress checking
+	s.progressWG.Add(1)
+	go s.checkProgress()
 
 	// Wait for task dispatch to finish
 	s.dispatchWG.Wait()
@@ -106,21 +111,12 @@ func (s *Scheduler) dispatchTasks() {
 			break
 		}
 
-		if s.outputMode == ProgressMode {
-			// Update progress periodically without locking critical sections
-			s.checkProgress()
-		}
-
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
 	}
 }
 
 func (s *Scheduler) runCore(coreID int) {
 	defer s.wg.Done()
-
-	// Create a ticker for periodic logging
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
 
 	for task := range s.taskQueue {
 		task.mu.Lock()
@@ -131,26 +127,21 @@ func (s *Scheduler) runCore(coreID int) {
 				task.isCompleted = true
 			}
 
+			// Set core status without blocking task progress
 			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Task %d", coreID+1, task.id)
+
 			if s.outputMode == LogMode {
 				s.logChannel <- fmt.Sprintf("Core %d processing Task %d... work left: %d\n", coreID+1, task.id, task.workLeft)
 			}
 		} else {
+			// Mark the core as idle if the task is completed
 			s.coreStatus[coreID] = fmt.Sprintf("Core %d: Idle", coreID+1)
-		}
-
-		// Periodic logging even when idle or working
-		if s.outputMode == ProgressMode {
-			select {
-			case <-ticker.C:
-				// Update progress without locking critical sections
-				s.checkProgress()
-			}
 		}
 
 		// Simulate the time it takes to do work
 		time.Sleep(time.Duration(s.timeSlice) * time.Millisecond)
 
+		// Log completion of the task
 		if task.isCompleted && s.outputMode == LogMode {
 			s.logChannel <- fmt.Sprintf("Core %d finished Task %d\n", coreID+1, task.id)
 		}
@@ -185,9 +176,21 @@ func (s *Scheduler) logToOutput(message string) {
 }
 
 func (s *Scheduler) checkProgress() {
-	// Display progress without holding critical locks
-	clearScreen()
-	s.printProgress()
+	defer s.progressWG.Done()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Display progress without holding critical locks
+			clearScreen()
+			s.printProgress()
+		case <-s.doneChannel:
+			return
+		}
+	}
 }
 
 func (s *Scheduler) printProgress() {
