@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -175,7 +177,7 @@ func (s *Scheduler) LogProgress() {
 			fmt.Printf("Core %d: Stopped\n", core.id)
 		}
 	}
-	fmt.Println("------------------------")
+	fmt.Println("---- Scheduler Stats ----")
 	fmt.Println("Tasks waiting to be scheduled:", s.runqueue)
 	fmt.Println("------------------------")
 }
@@ -214,8 +216,8 @@ func main() {
 	)
 
 	for i := 0; i < 10; i++ {
-		scheduler.AddTask(NewTask(i /* work= */, 5000))
-		// scheduler.AddTask(NewTask(i, /* work= */ rand.Intn(5000)+1))
+		// scheduler.AddTask(NewTask(i /* work= */, 1000))
+		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(5000)+1))
 	}
 
 	scheduler.Run()
