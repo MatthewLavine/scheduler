@@ -24,6 +24,7 @@ type Core struct {
 	state     int
 	timeSlice time.Duration
 	runqueue  chan *Task
+	current   *Task
 }
 
 type Scheduler struct {
@@ -54,9 +55,9 @@ func NewCore(id int, timeSlice time.Duration) *Core {
 }
 
 func (c *Core) Run() {
-	fmt.Printf("Core %d starting up\n", c.id)
 	for task := range c.runqueue {
 		c.state = Running
+		c.current = task
 
 		var work int
 		if task.work < int(c.timeSlice.Milliseconds()) {
@@ -64,17 +65,17 @@ func (c *Core) Run() {
 		} else {
 			work = min(int(c.timeSlice.Milliseconds()), task.work)
 		}
-		time.Sleep(time.Duration(work))
+		time.Sleep(time.Duration(work) * time.Millisecond)
 
 		task.work -= work
 		if task.work == 0 {
 			task.completed = true
 		}
 
+		c.current = nil
 		c.state = Idle
 		task.dispatched = false
 	}
-	fmt.Printf("Core %d shutting down\n", c.id)
 	c.state = Stopped
 }
 
@@ -128,7 +129,7 @@ func (s *Scheduler) Run() {
 			fmt.Println("All tasks completed")
 			break
 		}
-		time.Sleep(s.timeSlice)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	s.Shutdown()
@@ -141,15 +142,22 @@ func clearScreen() {
 func (s *Scheduler) LogProgress() {
 	clearScreen()
 	for _, task := range s.tasks {
-		fmt.Printf("Task %d: %d/%d\n", task.id, task.initialWork-task.work, task.initialWork)
+		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
+		fmt.Printf("Task %d: %.2f%% complete, progress %d/%d\n", task.id, progress, task.initialWork-task.work, task.initialWork)
 	}
 	for _, core := range s.cores {
-		fmt.Printf("Core %d: %d\n", core.id, core.state)
+		switch core.state {
+		case Idle:
+			fmt.Printf("Core %d: Idle\n", core.id)
+		case Running:
+			fmt.Printf("Core %d: Running task %d\n", core.id, core.current.id)
+		case Stopped:
+			fmt.Printf("Core %d: Stopped\n", core.id)
+		}
 	}
 }
 
 func (s *Scheduler) Shutdown() {
-	fmt.Println("Scheduler shutting down")
 	for _, core := range s.cores {
 		core.Shutdown()
 	}
@@ -165,8 +173,8 @@ func min(a, b int) int {
 func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
-		/* timeSlice= */ 1*time.Second,
-		/* numCores= */ 4,
+		/* timeSlice= */ 10*time.Millisecond,
+		/* numCores= */ 2,
 	)
 
 	for i := 0; i < 6; i++ {
