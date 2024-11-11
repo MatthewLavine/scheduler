@@ -141,11 +141,13 @@ func clearScreen() {
 
 func (s *Scheduler) LogProgress() {
 	clearScreen()
+	fmt.Println("---- Task Progress ----")
 	for _, task := range s.tasks {
 		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
 		fmt.Printf("Task %d: %05.2f%% complete, progress %d/%d\n", task.id, progress, task.initialWork-task.work, task.initialWork)
 	}
+	fmt.Println("---- Core Progress ----")
 	for _, core := range s.cores {
 		core := *core
 		switch core.state {
@@ -157,6 +159,7 @@ func (s *Scheduler) LogProgress() {
 			fmt.Printf("Core %d: Stopped\n", core.id)
 		}
 	}
+	fmt.Println("------------------------")
 }
 
 func (s *Scheduler) Shutdown() {
