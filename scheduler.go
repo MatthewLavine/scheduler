@@ -113,6 +113,10 @@ func (s *Scheduler) Run() {
 
 	for {
 		fmt.Println("Scheduler loop start")
+		for _, core := range s.cores {
+			fmt.Printf("Core: %#v\n", core)
+			fmt.Printf("Core runqueue: %#v\n", core.runqueue)
+		}
 		allCompleted := true
 		for _, task := range s.tasks {
 			fmt.Printf("Task: %#v\n", task)
