@@ -12,16 +12,18 @@ const (
 )
 
 type Task struct {
-	id         int
-	work       int
-	dispatched bool
-	completed  bool
+	id          int
+	initialWork int
+	work        int
+	dispatched  bool
+	completed   bool
 }
 
 type Core struct {
-	id       int
-	state    int
-	runqueue chan *Task
+	id        int
+	state     int
+	timeSlice time.Duration
+	runqueue  chan *Task
 }
 
 type Scheduler struct {
@@ -34,27 +36,50 @@ type Scheduler struct {
 
 func NewTask(id int, work int) *Task {
 	return &Task{
-		id:         id,
-		work:       work,
-		dispatched: false,
-		completed:  false,
+		id:          id,
+		initialWork: work,
+		work:        work,
+		dispatched:  false,
+		completed:   false,
 	}
 }
 
-func NewCore(id int) *Core {
+func NewCore(id int, timeSlice time.Duration) *Core {
 	return &Core{
-		id:       id,
-		state:    Idle,
-		runqueue: make(chan *Task),
+		id:        id,
+		state:     Idle,
+		timeSlice: timeSlice,
+		runqueue:  make(chan *Task),
 	}
 }
 
 func (c *Core) Run() {
 	fmt.Printf("Core %d starting up\n", c.id)
 	for task := range c.runqueue {
+		c.state = Running
+
 		fmt.Printf("Core %d running task %d\n", c.id, task.id)
+
+		var work int
+		if task.work < int(c.timeSlice.Milliseconds()) {
+			work = task.work
+		} else {
+			work = min(int(c.timeSlice.Milliseconds()), task.work)
+		}
+		time.Sleep(time.Duration(work))
+
+		fmt.Printf("Core %d did %d work for task %d\n", c.id, work, task.id)
+		fmt.Printf("Task %d has %d work left\n", task.id, task.work-work)
+		task.work -= work
+		if task.work == 0 {
+			task.completed = true
+		}
+
+		c.state = Idle
+		task.dispatched = false
 	}
 	fmt.Printf("Core %d shutting down\n", c.id)
+	c.state = Stopped
 }
 
 func (c *Core) Shutdown() {
@@ -79,7 +104,7 @@ func (s *Scheduler) Run() {
 
 	fmt.Println("Starting cores")
 	for i := 0; i < s.numCores; i++ {
-		core := NewCore(i)
+		core := NewCore(i, s.timeSlice)
 		s.cores[i] = core
 		go core.Run()
 	}
@@ -87,8 +112,10 @@ func (s *Scheduler) Run() {
 	fmt.Println("Dispatching tasks")
 
 	for {
+		fmt.Println("Scheduler loop start")
 		allCompleted := true
 		for _, task := range s.tasks {
+			fmt.Printf("Task: %#v\n", task)
 			if !task.completed {
 				allCompleted = false
 				if !task.dispatched {
@@ -104,6 +131,7 @@ func (s *Scheduler) Run() {
 			}
 		}
 		if allCompleted {
+			fmt.Println("All tasks completed")
 			break
 		}
 		time.Sleep(s.timeSlice)
@@ -117,6 +145,13 @@ func (s *Scheduler) Shutdown() {
 	for _, core := range s.cores {
 		core.Shutdown()
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func main() {
