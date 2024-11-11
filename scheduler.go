@@ -33,6 +33,7 @@ type Core struct {
 type Scheduler struct {
 	timeSlice time.Duration
 	numCores  int
+	runqueue  int
 
 	cores []*Core
 	tasks []*Task
@@ -121,12 +122,15 @@ func (s *Scheduler) Run() {
 
 	for {
 		allCompleted := true
+		s.runqueue = 0
 		for _, task := range s.tasks {
 			if !task.completed {
 				allCompleted = false
 				if !task.dispatched {
 					core := s.PickCore()
-					if core != nil {
+					if core == nil {
+						s.runqueue++
+					} else {
 						task.dispatched = true
 						core.runqueue <- task
 					}
@@ -166,11 +170,13 @@ func (s *Scheduler) LogProgress() {
 		case Idle:
 			fmt.Printf("Core %d: Idle\n", core.id)
 		case Running:
-			fmt.Printf("Core %d: Running task %d\n", core.id, core.current.id)
+			fmt.Printf("Core %d: Running task %d, queue size %d\n", core.id, core.current.id, len(core.runqueue))
 		case Stopped:
 			fmt.Printf("Core %d: Stopped\n", core.id)
 		}
 	}
+	fmt.Println("------------------------")
+	fmt.Println("Tasks waiting to be scheduled:", s.runqueue)
 	fmt.Println("------------------------")
 }
 
@@ -192,7 +198,7 @@ func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
 		/* timeSlice= */ 100*time.Millisecond,
-		/* numCores= */ 4,
+		/* numCores= */ 2,
 	)
 
 	for i := 0; i < 10; i++ {
