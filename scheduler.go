@@ -180,11 +180,23 @@ func (s *Scheduler) LogProgress() {
 	fmt.Println("------------------------")
 }
 
+func (s *Scheduler) LogStats() {
+	fmt.Println("------ Task Stats ------")
+	totalRuntime := time.Duration(0)
+	for _, task := range s.tasks {
+		totalRuntime += task.runTime
+	}
+	averageRuntime := totalRuntime / time.Duration(len(s.tasks))
+	fmt.Printf("Average task runtime: %v\n", averageRuntime.Round(time.Millisecond))
+	fmt.Println("------------------------")
+}
+
 func (s *Scheduler) Shutdown() {
 	for _, core := range s.cores {
 		core.Shutdown()
 	}
 	s.LogProgress()
+	s.LogStats()
 }
 
 func min(a, b int) int {
