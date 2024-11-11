@@ -108,7 +108,7 @@ func (s *Scheduler) AddTask(task *Task) {
 
 func (s *Scheduler) PickCore() *Core {
 	for _, core := range s.cores {
-		if core.state == Idle {
+		if core.state == Idle && len(core.runqueue) == 0 {
 			return core
 		}
 	}
@@ -212,7 +212,7 @@ func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
 		/* timeSlice= */ 100*time.Millisecond,
-		/* numCores= */ 6,
+		/* numCores= */ 2,
 	)
 
 	for i := 0; i < 20; i++ {
