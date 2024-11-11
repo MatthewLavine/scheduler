@@ -173,7 +173,7 @@ func (s *Scheduler) LogProgress() {
 		if task.completed {
 			fmt.Printf("Task %2d: 100.00%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
 		} else {
-			fmt.Printf("Task %2d: %06.2f%% complete\n", task.id, progress)
+			fmt.Printf("Task %2d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
 		}
 	}
 	fmt.Println("---- Core Progress ----")
