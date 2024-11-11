@@ -17,6 +17,7 @@ const (
 type Task struct {
 	id          int
 	initialWork int
+	workDone    int
 	work        int
 	dispatched  bool
 	completed   bool
@@ -75,6 +76,7 @@ func (c *Core) Run() {
 		}
 		time.Sleep(time.Duration(work) * time.Millisecond)
 
+		task.workDone += work
 		task.work -= work
 		if task.work == 0 {
 			task.completed = true
@@ -135,9 +137,9 @@ func (s *Scheduler) Run() {
 				}
 			}
 		}
-		// Sort tasks by work remaining in descending order
+		// Sort tasks by work performed so far
 		sort.Slice(tasksToSchedule, func(i, j int) bool {
-			return tasksToSchedule[i].work > tasksToSchedule[j].work
+			return tasksToSchedule[i].workDone < tasksToSchedule[j].workDone
 		})
 		for _, task := range tasksToSchedule {
 			core := s.PickCore()
@@ -171,7 +173,7 @@ func (s *Scheduler) LogProgress() {
 		if task.completed {
 			fmt.Printf("Task %2d: 100.00%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
 		} else {
-			fmt.Printf("Task %2d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
+			fmt.Printf("Task %2d: %06.2f%% complete\n", task.id, progress)
 		}
 	}
 	fmt.Println("---- Core Progress ----")
