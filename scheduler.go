@@ -227,7 +227,7 @@ func min(a, b int) int {
 func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
-		/* timeSlice= */ 100*time.Millisecond,
+		/* timeSlice= */ 50*time.Millisecond,
 		/* numCores= */ 2,
 	)
 
