@@ -103,6 +103,15 @@ func (s *Scheduler) AddTask(task *Task) {
 	s.tasks = append(s.tasks, task)
 }
 
+func (s *Scheduler) PickCore() *Core {
+	for _, core := range s.cores {
+		if core.state == Idle {
+			return core
+		}
+	}
+	return nil
+}
+
 func (s *Scheduler) Run() {
 	for i := 0; i < s.numCores; i++ {
 		core := NewCore(i, s.timeSlice)
@@ -116,12 +125,10 @@ func (s *Scheduler) Run() {
 			if !task.completed {
 				allCompleted = false
 				if !task.dispatched {
-					for _, core := range s.cores {
-						if core.state == Idle {
-							task.dispatched = true
-							core.runqueue <- task
-							break
-						}
+					core := s.PickCore()
+					if core != nil {
+						task.dispatched = true
+						core.runqueue <- task
 					}
 				}
 			}
