@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/exp/rand"
@@ -14,8 +15,12 @@ const (
 	Stopped
 )
 
+var (
+	taskId *int32 = new(int32)
+)
+
 type Task struct {
-	id          int
+	id          int32
 	initialWork int
 	workDone    int
 	work        int
@@ -43,9 +48,9 @@ type Scheduler struct {
 	tasks []*Task
 }
 
-func NewTask(id int, work int) *Task {
+func NewTask(work int) *Task {
 	return &Task{
-		id:          id,
+		id:          atomic.AddInt32(taskId, 1),
 		initialWork: work,
 		work:        work,
 		dispatched:  false,
@@ -226,10 +231,23 @@ func main() {
 		/* numCores= */ 2,
 	)
 
-	for i := 0; i < 20; i++ {
-		// scheduler.AddTask(NewTask(i /* work= */, 10000))
-		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(10000)+1))
+	// Add some small tasks.
+	for i := 0; i < 10; i++ {
+		scheduler.AddTask(NewTask( /* work= */ rand.Intn(100) + 1))
 	}
+
+	// Add some large tasks.
+	for i := 0; i < 10; i++ {
+		scheduler.AddTask(NewTask( /* work= */ rand.Intn(10000) + 1))
+	}
+
+	go func() {
+		// Add an extra task every 10 seconds, until all tasks are done.
+		for {
+			time.Sleep(5 * time.Second)
+			scheduler.AddTask(NewTask( /* work= */ 1000))
+		}
+	}()
 
 	scheduler.Run()
 }
