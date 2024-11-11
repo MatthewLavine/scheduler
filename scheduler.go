@@ -99,16 +99,11 @@ func (s *Scheduler) AddTask(task *Task) {
 }
 
 func (s *Scheduler) Run() {
-	fmt.Println("Scheduler starting up")
-
-	fmt.Println("Starting cores")
 	for i := 0; i < s.numCores; i++ {
 		core := NewCore(i, s.timeSlice)
 		s.cores[i] = core
 		go core.Run()
 	}
-
-	fmt.Println("Dispatching tasks")
 
 	for {
 		allCompleted := true
