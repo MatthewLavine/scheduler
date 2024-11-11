@@ -58,8 +58,6 @@ func (c *Core) Run() {
 	for task := range c.runqueue {
 		c.state = Running
 
-		fmt.Printf("Core %d running task %d\n", c.id, task.id)
-
 		var work int
 		if task.work < int(c.timeSlice.Milliseconds()) {
 			work = task.work
@@ -68,8 +66,6 @@ func (c *Core) Run() {
 		}
 		time.Sleep(time.Duration(work))
 
-		fmt.Printf("Core %d did %d work for task %d\n", c.id, work, task.id)
-		fmt.Printf("Task %d has %d work left\n", task.id, task.work-work)
 		task.work -= work
 		if task.work == 0 {
 			task.completed = true
@@ -112,21 +108,14 @@ func (s *Scheduler) Run() {
 	fmt.Println("Dispatching tasks")
 
 	for {
-		fmt.Println("Scheduler loop start")
-		for _, core := range s.cores {
-			fmt.Printf("Core: %#v\n", core)
-			fmt.Printf("Core runqueue: %#v\n", core.runqueue)
-		}
 		allCompleted := true
 		for _, task := range s.tasks {
-			fmt.Printf("Task: %#v\n", task)
 			if !task.completed {
 				allCompleted = false
 				if !task.dispatched {
-					task.dispatched = true
 					for _, core := range s.cores {
 						if core.state == Idle {
-							fmt.Printf("Dispatching task %d to core %d\n", task.id, core.id)
+							task.dispatched = true
 							core.runqueue <- task
 							break
 						}
@@ -134,6 +123,7 @@ func (s *Scheduler) Run() {
 				}
 			}
 		}
+		s.LogProgress()
 		if allCompleted {
 			fmt.Println("All tasks completed")
 			break
@@ -142,6 +132,20 @@ func (s *Scheduler) Run() {
 	}
 
 	s.Shutdown()
+}
+
+func clearScreen() {
+	fmt.Print("\033[H\033[2J")
+}
+
+func (s *Scheduler) LogProgress() {
+	clearScreen()
+	for _, task := range s.tasks {
+		fmt.Printf("Task %d: %d/%d\n", task.id, task.initialWork-task.work, task.initialWork)
+	}
+	for _, core := range s.cores {
+		fmt.Printf("Core %d: %d\n", core.id, core.state)
+	}
 }
 
 func (s *Scheduler) Shutdown() {
@@ -162,10 +166,10 @@ func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
 		/* timeSlice= */ 1*time.Second,
-		/* numCores= */ 2,
+		/* numCores= */ 4,
 	)
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		scheduler.AddTask(NewTask(i /* work= */, 10000))
 	}
 
