@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"time"
-
-	"golang.org/x/exp/rand"
 )
 
 const (
@@ -125,18 +124,26 @@ func (s *Scheduler) Run() {
 	for {
 		allCompleted := true
 		s.runqueue = 0
+		var tasksToSchedule []*Task
 		for _, task := range s.tasks {
 			if !task.completed {
 				allCompleted = false
 				if !task.dispatched {
-					core := s.PickCore()
-					if core == nil {
-						s.runqueue++
-					} else {
-						task.dispatched = true
-						core.runqueue <- task
-					}
+					tasksToSchedule = append(tasksToSchedule, task)
 				}
+			}
+		}
+		// Sort tasks by work remaining in descending order
+		sort.Slice(tasksToSchedule, func(i, j int) bool {
+			return tasksToSchedule[i].work > tasksToSchedule[j].work
+		})
+		for _, task := range tasksToSchedule {
+			core := s.PickCore()
+			if core == nil {
+				s.runqueue++
+			} else {
+				task.dispatched = true
+				core.runqueue <- task
 			}
 		}
 		s.LogProgress()
@@ -216,8 +223,8 @@ func main() {
 	)
 
 	for i := 0; i < 20; i++ {
-		// scheduler.AddTask(NewTask(i /* work= */, 10000))
-		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(100000)+1))
+		scheduler.AddTask(NewTask(i /* work= */, 10000))
+		// scheduler.AddTask(NewTask(i /* work= */, rand.Intn(100000)+1))
 	}
 
 	scheduler.Run()
