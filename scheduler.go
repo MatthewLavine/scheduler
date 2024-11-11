@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -223,8 +225,8 @@ func main() {
 	)
 
 	for i := 0; i < 20; i++ {
-		scheduler.AddTask(NewTask(i /* work= */, 10000))
-		// scheduler.AddTask(NewTask(i /* work= */, rand.Intn(100000)+1))
+		// scheduler.AddTask(NewTask(i /* work= */, 10000))
+		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(10000)+1))
 	}
 
 	scheduler.Run()
