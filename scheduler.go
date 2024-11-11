@@ -56,8 +56,8 @@ func NewCore(id int, timeSlice time.Duration) *Core {
 
 func (c *Core) Run() {
 	for task := range c.runqueue {
-		c.state = Running
 		c.current = task
+		c.state = Running
 
 		var work int
 		if task.work < int(c.timeSlice.Milliseconds()) {
@@ -72,8 +72,8 @@ func (c *Core) Run() {
 			task.completed = true
 		}
 
-		c.current = nil
 		c.state = Idle
+		c.current = nil
 		task.dispatched = false
 	}
 	c.state = Stopped
