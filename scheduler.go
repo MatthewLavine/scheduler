@@ -163,6 +163,7 @@ func (s *Scheduler) Shutdown() {
 	for _, core := range s.cores {
 		core.Shutdown()
 	}
+	s.LogProgress()
 }
 
 func min(a, b int) int {
