@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -145,7 +147,7 @@ func (s *Scheduler) LogProgress() {
 	for _, task := range s.tasks {
 		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
-		fmt.Printf("Task %d: %05.2f%% complete, progress %d/%d\n", task.id, progress, task.initialWork-task.work, task.initialWork)
+		fmt.Printf("Task %d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
 	}
 	fmt.Println("---- Core Progress ----")
 	for _, core := range s.cores {
@@ -184,7 +186,7 @@ func main() {
 	)
 
 	for i := 0; i < 6; i++ {
-		scheduler.AddTask(NewTask(i /* work= */, 1000))
+		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(10000)+1))
 	}
 
 	scheduler.Run()
