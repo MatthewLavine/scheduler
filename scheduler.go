@@ -87,6 +87,7 @@ func (c *Core) Run() {
 
 func (c *Core) Shutdown() {
 	close(c.runqueue)
+	c.state = Stopped
 }
 
 func NewScheduler(timeSlice time.Duration, numCores int) *Scheduler {
