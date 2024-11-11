@@ -142,12 +142,12 @@ func clearScreen() {
 func (s *Scheduler) LogProgress() {
 	clearScreen()
 	for _, task := range s.tasks {
-		task := task
+		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
 		fmt.Printf("Task %d: %05.2f%% complete, progress %d/%d\n", task.id, progress, task.initialWork-task.work, task.initialWork)
 	}
 	for _, core := range s.cores {
-		core := core
+		core := *core
 		switch core.state {
 		case Idle:
 			fmt.Printf("Core %d: Idle\n", core.id)
