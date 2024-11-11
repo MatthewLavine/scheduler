@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"time"
-
-	"golang.org/x/exp/rand"
 )
 
 const (
@@ -19,6 +17,9 @@ type Task struct {
 	work        int
 	dispatched  bool
 	completed   bool
+	startTime   time.Time
+	endTime     time.Time
+	runTime     time.Duration
 }
 
 type Core struct {
@@ -44,6 +45,7 @@ func NewTask(id int, work int) *Task {
 		work:        work,
 		dispatched:  false,
 		completed:   false,
+		startTime:   time.Now(),
 	}
 }
 
@@ -52,7 +54,7 @@ func NewCore(id int, timeSlice time.Duration) *Core {
 		id:        id,
 		state:     Idle,
 		timeSlice: timeSlice,
-		runqueue:  make(chan *Task),
+		runqueue:  make(chan *Task, 10),
 	}
 }
 
@@ -72,6 +74,8 @@ func (c *Core) Run() {
 		task.work -= work
 		if task.work == 0 {
 			task.completed = true
+			task.endTime = time.Now()
+			task.runTime = task.endTime.Sub(task.startTime)
 		}
 
 		c.state = Idle
@@ -123,7 +127,6 @@ func (s *Scheduler) Run() {
 		}
 		s.LogProgress()
 		if allCompleted {
-			fmt.Println("All tasks completed")
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -142,7 +145,11 @@ func (s *Scheduler) LogProgress() {
 	for _, task := range s.tasks {
 		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
-		fmt.Printf("Task %d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
+		if task.completed {
+			fmt.Printf("Task %d: 100%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
+		} else {
+			fmt.Printf("Task %d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
+		}
 	}
 	fmt.Println("---- Core Progress ----")
 	for _, core := range s.cores {
@@ -176,12 +183,13 @@ func min(a, b int) int {
 func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
-		/* timeSlice= */ 10*time.Millisecond,
-		/* numCores= */ 2,
+		/* timeSlice= */ 100*time.Millisecond,
+		/* numCores= */ 4,
 	)
 
-	for i := 0; i < 6; i++ {
-		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(10000)+1))
+	for i := 0; i < 10; i++ {
+		scheduler.AddTask(NewTask(i /* work= */, 5000))
+		// scheduler.AddTask(NewTask(i, /* work= */ rand.Intn(5000)+1))
 	}
 
 	scheduler.Run()
