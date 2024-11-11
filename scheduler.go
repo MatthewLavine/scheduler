@@ -160,9 +160,9 @@ func (s *Scheduler) LogProgress() {
 		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
 		if task.completed {
-			fmt.Printf("Task %d: 100%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
+			fmt.Printf("Task %2d: 100.00%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
 		} else {
-			fmt.Printf("Task %d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
+			fmt.Printf("Task %2d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
 		}
 	}
 	fmt.Println("---- Core Progress ----")
@@ -172,7 +172,7 @@ func (s *Scheduler) LogProgress() {
 		case Idle:
 			fmt.Printf("Core %d: Idle\n", core.id)
 		case Running:
-			fmt.Printf("Core %d: Running task %d, queue size %d\n", core.id, core.current.id, len(core.runqueue))
+			fmt.Printf("Core %d: Running task %2d, queue size %d\n", core.id, core.current.id, len(core.runqueue))
 		case Stopped:
 			fmt.Printf("Core %d: Stopped\n", core.id)
 		}
@@ -212,12 +212,12 @@ func main() {
 	// Start the scheduler
 	scheduler := NewScheduler(
 		/* timeSlice= */ 100*time.Millisecond,
-		/* numCores= */ 2,
+		/* numCores= */ 6,
 	)
 
-	for i := 0; i < 10; i++ {
-		// scheduler.AddTask(NewTask(i /* work= */, 1000))
-		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(5000)+1))
+	for i := 0; i < 20; i++ {
+		// scheduler.AddTask(NewTask(i /* work= */, 10000))
+		scheduler.AddTask(NewTask(i /* work= */, rand.Intn(100000)+1))
 	}
 
 	scheduler.Run()
