@@ -200,12 +200,26 @@ func (s *Scheduler) LogProgress() {
 
 func (s *Scheduler) LogStats() {
 	fmt.Println("------ Task Stats ------")
+	// Average task runtime.
 	totalRuntime := time.Duration(0)
 	for _, task := range s.tasks {
 		totalRuntime += task.runTime
 	}
 	averageRuntime := totalRuntime / time.Duration(len(s.tasks))
-	fmt.Printf("Average task runtime: %v\n", averageRuntime.Round(time.Millisecond))
+	fmt.Printf("Avg task runtime: %v\n", averageRuntime.Round(time.Millisecond))
+	// Min / Max task runtime.
+	minRuntime := time.Duration(0)
+	maxRuntime := time.Duration(0)
+	for _, task := range s.tasks {
+		if minRuntime == 0 || task.runTime < minRuntime {
+			minRuntime = task.runTime
+		}
+		if maxRuntime == 0 || task.runTime > maxRuntime {
+			maxRuntime = task.runTime
+		}
+	}
+	fmt.Printf("Min task runtime: %v\n", minRuntime.Round(time.Millisecond))
+	fmt.Printf("Max task runtime: %v\n", maxRuntime.Round(time.Millisecond))
 	fmt.Println("------------------------")
 }
 
@@ -232,12 +246,12 @@ func main() {
 	)
 
 	// Add some small tasks.
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		scheduler.AddTask(NewTask( /* work= */ rand.Intn(100) + 1))
 	}
 
 	// Add some large tasks.
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		scheduler.AddTask(NewTask( /* work= */ rand.Intn(10000) + 1))
 	}
 
