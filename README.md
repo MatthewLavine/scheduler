@@ -1,5 +1,7 @@
 # (GPT) CPU Scheduler
 
+[![Go](https://github.com/MatthewLavine/scheduler/actions/workflows/go.yml/badge.svg)](https://github.com/MatthewLavine/scheduler/actions/workflows/go.yml)
+
 Playing around comparing a ChatGPT generated CPU scheduler versus a manually coded version.
 
 ---
