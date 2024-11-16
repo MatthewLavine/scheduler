@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"sort"
 	"sync/atomic"
@@ -16,7 +17,11 @@ const (
 )
 
 var (
-	taskId *int32 = new(int32)
+	taskId                  *int32 = new(int32)
+	coresFlag                      = flag.Int("cores", 2, "Number of cores to simulate")
+	timeSliceFlag                  = flag.Duration("timeSlice", 50*time.Millisecond, "Time slice for each core")
+	cheapTasksCountFlag            = flag.Int("cheapTasksCount", 5, "Number of cheap tasks to simulate")
+	expensiveTasksCountFlag        = flag.Int("expensiveTasksCount", 5, "Number of expensive tasks to simulate")
 )
 
 type Task struct {
@@ -239,29 +244,23 @@ func min(a, b int) int {
 }
 
 func main() {
+	flag.Parse()
+
 	// Start the scheduler
 	scheduler := NewScheduler(
-		/* timeSlice= */ 50*time.Millisecond,
-		/* numCores= */ 2,
+		/* timeSlice= */ *timeSliceFlag,
+		/* numCores= */ *coresFlag,
 	)
 
 	// Add some small tasks.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < *cheapTasksCountFlag; i++ {
 		scheduler.AddTask(NewTask( /* work= */ rand.Intn(100) + 1))
 	}
 
 	// Add some large tasks.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < *expensiveTasksCountFlag; i++ {
 		scheduler.AddTask(NewTask( /* work= */ rand.Intn(10000) + 1))
 	}
-
-	go func() {
-		// Add an extra task every 10 seconds, until all tasks are done.
-		for {
-			time.Sleep(5 * time.Second)
-			scheduler.AddTask(NewTask( /* work= */ 1000))
-		}
-	}()
 
 	scheduler.Run()
 }
