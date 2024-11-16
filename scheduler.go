@@ -200,7 +200,6 @@ func (s *Scheduler) LogProgress() {
 	}
 	fmt.Println("---- Scheduler Stats ----")
 	fmt.Println("Tasks waiting to be scheduled:", s.runqueue)
-	fmt.Println("------------------------")
 }
 
 func (s *Scheduler) LogStats() {
