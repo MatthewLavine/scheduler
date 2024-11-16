@@ -25,15 +25,17 @@ var (
 )
 
 type Task struct {
-	id          int32
-	initialWork int
-	workDone    int
-	work        int
-	dispatched  bool
-	completed   bool
-	startTime   time.Time
-	endTime     time.Time
-	runTime     time.Duration
+	id              int32
+	initialWork     int
+	workDone        int
+	work            int
+	dispatched      bool
+	completed       bool
+	startTime       time.Time
+	endTime         time.Time
+	runTime         time.Duration
+	lastRunTime     time.Time
+	largestWaitTime time.Duration
 }
 
 type Core struct {
@@ -61,6 +63,7 @@ func NewTask(work int) *Task {
 		dispatched:  false,
 		completed:   false,
 		startTime:   time.Now(),
+		lastRunTime: time.Now(),
 	}
 }
 
@@ -77,6 +80,12 @@ func (c *Core) Run() {
 	for task := range c.runqueue {
 		c.current = task
 		c.state = Running
+
+		waitTime := time.Since(task.lastRunTime)
+		if waitTime > task.largestWaitTime {
+			task.largestWaitTime = waitTime
+		}
+		task.lastRunTime = time.Now()
 
 		var work int
 		if task.work < int(c.timeSlice.Milliseconds()) {
@@ -181,7 +190,7 @@ func (s *Scheduler) LogProgress() {
 		task := *task
 		progress := float64(task.initialWork-task.work) / float64(task.initialWork) * 100
 		if task.completed {
-			fmt.Printf("Task %2d: 100.00%% complete, runtime %v\n", task.id, task.runTime.Round(time.Millisecond))
+			fmt.Printf("Task %2d: 100.00%% complete, runtime %v, longest wait time: %v\n", task.id, task.runTime.Round(time.Millisecond), task.largestWaitTime.Round(time.Millisecond))
 		} else {
 			fmt.Printf("Task %2d: %06.2f%% complete, remaining %d\n", task.id, progress, task.work)
 		}
@@ -204,26 +213,44 @@ func (s *Scheduler) LogProgress() {
 
 func (s *Scheduler) LogStats() {
 	fmt.Println("------ Task Stats ------")
-	// Average task runtime.
-	totalRuntime := time.Duration(0)
-	for _, task := range s.tasks {
-		totalRuntime += task.runTime
-	}
-	averageRuntime := totalRuntime / time.Duration(len(s.tasks))
-	fmt.Printf("Avg task runtime: %v\n", averageRuntime.Round(time.Millisecond))
-	// Min / Max task runtime.
+
+	// Task run times and wait times.
 	minRuntime := time.Duration(0)
 	maxRuntime := time.Duration(0)
+	totalRuntime := time.Duration(0)
+
+	minWaitTime := time.Duration(0)
+	maxWaitTime := time.Duration(0)
+	totalWaitTime := time.Duration(0)
+
 	for _, task := range s.tasks {
+		totalRuntime += task.runTime
 		if minRuntime == 0 || task.runTime < minRuntime {
 			minRuntime = task.runTime
 		}
 		if maxRuntime == 0 || task.runTime > maxRuntime {
 			maxRuntime = task.runTime
 		}
+
+		totalWaitTime += task.largestWaitTime
+		if minWaitTime == 0 || task.largestWaitTime < minWaitTime {
+			minWaitTime = task.largestWaitTime
+		}
+		if maxWaitTime == 0 || task.largestWaitTime > maxWaitTime {
+			maxWaitTime = task.largestWaitTime
+		}
 	}
+
+	averageRuntime := totalRuntime / time.Duration(len(s.tasks))
+	averageWaitTime := totalWaitTime / time.Duration(len(s.tasks))
+
 	fmt.Printf("Min task runtime: %v\n", minRuntime.Round(time.Millisecond))
+	fmt.Printf("Avg task runtime: %v\n", averageRuntime.Round(time.Millisecond))
 	fmt.Printf("Max task runtime: %v\n", maxRuntime.Round(time.Millisecond))
+
+	fmt.Printf("Min task wait time: %v\n", minWaitTime.Round(time.Millisecond))
+	fmt.Printf("Avg task wait time: %v\n", averageWaitTime.Round(time.Millisecond))
+	fmt.Printf("Max task wait time: %v\n", maxWaitTime.Round(time.Millisecond))
 	fmt.Println("------------------------")
 }
 

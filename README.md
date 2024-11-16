@@ -26,3 +26,34 @@ Tasks waiting to be scheduled: 0
 Average task runtime: 8.799s
 ------------------------
 ```
+
+You can use this to demonstrate the responsiveness difference between a preemptive scheduler and a (non)cooperative scheduler:
+
+Preemptive:
+
+```
+$ go run scheduler.go --cores=6 --timeSlice=10ms --cheapTasksCount=0 --expensiveTasksCount=20
+...
+------ Task Stats ------
+Min task runtime: 818ms
+Avg task runtime: 21.864s
+Max task runtime: 31.566s
+Min task wait time: 72ms
+Avg task wait time: 83ms
+Max task wait time: 103ms
+------------------------
+```
+
+Cooperative (using a `999m` timeSlice to emulate non-preemption):
+
+```
+$ go run scheduler.go --cores=6 --timeSlice=999m --cheapTasksCount=0 --expensiveTasksCount=20
+------ Task Stats ------
+Min task runtime: 178ms
+Avg task runtime: 13.05s
+Max task runtime: 28.427s
+Min task wait time: 0s
+Avg task wait time: 6.726s
+Max task wait time: 20.542s
+------------------------
+```
