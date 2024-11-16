@@ -1,4 +1,4 @@
-module matthewlavine.net/scheduler
+module github.com/MatthewLavine/scheduler
 
 go 1.23
 
